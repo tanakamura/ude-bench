@@ -8,7 +8,7 @@ Huh ? I don't know.
 This programe includes code generator for ARM.
 If you want to use that as library, run make as follows:
 
- $ make libag.a
+> $ make libag.a
 
 and link libag.a.
 
