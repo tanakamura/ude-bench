@@ -19,6 +19,9 @@ OBJS = $(foreach obj,$(OBJS_REL),$(CURDIR)/$(obj))
 gentest: $(OBJS)
 	g++ $(LDFLAGS) -o $@ $^
 
+libag.a: ag/ag_gen.o npr/varray.o npr/mempool-c.o
+	ar cru $@ $^
+
 DEPS=$(OBJS:.o=.d)
 -include $(DEPS)
 
