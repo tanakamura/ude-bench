@@ -3,3 +3,4 @@ gentest
 *.o
 *.bin
 *.d
+*.a
