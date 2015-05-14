@@ -205,7 +205,7 @@ ag_emit_##name##_##prefix##8(struct ag_Emitter *e, int q, int vd, int vn, int vm
 void                                                                    \
 ag_emit_##name##_f32(struct ag_Emitter *e, int q, int vd, int vn, int vm)   \
 {                                                                       \
-    ag_emit_vr3(e, opc, q, 2, vd, vn, vm);                             \
+    ag_emit_vr3(e, opc, q, 0, vd, vn, vm);                             \
 }                                                                       \
 void                                                                    \
 ag_emit_##name##_f64(struct ag_Emitter *e, int q, int vd, int vn, int vm)    \
@@ -243,6 +243,75 @@ AG_FOR_EACH_VR3_IPF(IMPL_NEON_VR3_IPF);
 
 AG_FOR_EACH_VR3_USIP(IMPL_NEON_VR3_USIP);
 
+
+void
+ag_emit_ldrstr_reg(struct ag_Emitter *e, int opc, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr)
+{
+    int u = 0;
+
+    if (add) {
+        u = 1<<23;
+    }
+
+    emit4(e, incr | opc | (cc<<28) | u | (rn<<16) | (rt<<12) | (shift<<4) | rm);
+}
+
+void
+ag_emit_ldr_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr)
+{
+    ag_emit_ldrstr_reg(e, AG_LDR_REG, cc, rt, rn, rm, shift, add, incr);
+}
+void
+ag_emit_str_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr)
+{
+    ag_emit_ldrstr_reg(e, AG_STR_REG, cc, rt, rn, rm, shift, add, incr);
+}
+
+
+void
+ag_emit_ldrstr_imm(struct ag_Emitter *e, int opc, enum ag_cond cc, int rt, int rn, int imm, int incr)
+{
+    int u = 0;
+
+    if (imm >= 0) {
+        u = 1<<23;
+    } else {
+        imm *= -1;
+    }
+
+    imm &= (1<<13)-1;
+
+    emit4(e, incr | opc | (cc<<28) | u | (rn<<16) | (rt<<12) | imm);
+}
+
+void
+ag_emit_ldr_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr)
+{
+    ag_emit_ldrstr_imm(e, AG_LDR_IMM, cc, rt, rn, imm, incr);
+}
+
+void
+ag_emit_str_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr)
+{
+    ag_emit_ldrstr_imm(e, AG_STR_IMM, cc, rt, rn, imm, incr);
+}
+
+
+void
+ag_emit_vldst1(struct ag_Emitter *e, int vd, int rn, int rm, int align, int opc, int size)
+{
+    int dh = (vd >> 4)&1;
+    int dl = vd & 0xf;
+    emit4(e, opc|(dh<<22)|(rn<<16)|(dl<<12)|(size<<10)|(align<<4)|rm);
+}
+
+
+#define IMPL_VLDST(name, nelem, type, opc, size_bits)               \
+    void ag_emit_##name##nelem##_##type(struct ag_Emitter *e, int vd, int rn, int rm, int align) { \
+        ag_emit_vldst1(e, vd, rn, rm, align, opc, size_bits);           \
+    }
+
+AG_FOR_EACH_VLDST(IMPL_VLDST);
 
 void
 ag_emit_label(struct ag_Emitter *e, ag_label_id_t label)

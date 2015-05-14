@@ -37,5 +37,36 @@
 #define AG_FOR_EACH_VR3_USIP(F)                                         \
     F(vmull, AG_NEON_VR3_VMULLU, AG_NEON_VR3_VMULLS, AG_NEON_VR3_VMULLI, AG_NEON_VR3_VMULLP)
 
+#define AG_VLD1_1 0xf4a00000
+#define AG_VLD2_1 0xf4a00100
+#define AG_VLD3_1 0xf4a00200
+#define AG_VLD4_1 0xf4a00300
+
+#define AG_VST1_1 0xf4800000
+#define AG_VST2_1 0xf4800100
+#define AG_VST3_1 0xf4800200
+#define AG_VST4_1 0xf4800300
+
+
+#define AG_FOR_EACH_VLDST_NELEM(F, type, size_bits)      \
+    F(vld, 1, type, AG_VLD1_1, size_bits)                           \
+    F(vld, 2, type, AG_VLD2_1, size_bits)                            \
+    F(vld, 3, type, AG_VLD3_1, size_bits)                            \
+    F(vld, 4, type, AG_VLD4_1, size_bits)                            \
+    F(vst, 1, type, AG_VST1_1, size_bits)                           \
+    F(vst, 2, type, AG_VST2_1, size_bits)                            \
+    F(vst, 3, type, AG_VST3_1, size_bits)                            \
+    F(vst, 4, type, AG_VST4_1, size_bits)
+
+#define AG_FOR_EACH_VLDST(F)                                         \
+    AG_FOR_EACH_VLDST_NELEM(F, 8, 0)                                     \
+    AG_FOR_EACH_VLDST_NELEM(F, 16, 1)                                     \
+    AG_FOR_EACH_VLDST_NELEM(F, 32, 2)
+
+#define AG_LDR_REG 0x06100000
+#define AG_STR_REG 0x06000000
+
+#define AG_LDR_IMM 0x05100000
+#define AG_STR_IMM 0x05000000
 
 #endif

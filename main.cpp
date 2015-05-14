@@ -25,7 +25,7 @@ main()
         ag_emit_vadd_i32(&e, 0, 0, 1, 2);
         ag_emit_vadd_i8(&e, 0, 31, 31, 31);
         ag_emit_vadd_i32(&e, 1, 0, 1, 2);
-        ag_emit_vadd_f64(&e, 0, 0, 1, 2);
+        //ag_emit_vadd_f64(&e, 0, 0, 1, 2);
 
         ag_emit_vpmin_s32(&e, 0, 0, 1, 2);
         ag_emit_vpmax_u32(&e, 0, 0, 1, 2);
@@ -38,8 +38,15 @@ main()
 
         ag_emit_vmull_u32(&e, 0, 0, 1, 2);
         ag_emit_vmull_s32(&e, 0, 0, 1, 2);
-        ag_emit_vmull_i8(&e, 0, 0, 1, 2);
         ag_emit_vmull_p8(&e, 0, 0, 1, 2);
+
+        ag_emit_ldr_reg(&e, AG_COND_AL, 3, 3, 3, AG_ASR_AM(1), 1, 0);
+        ag_emit_str_reg(&e, AG_COND_AL, 3, 3, 3, AG_ASR_AM(1), 1, 0);
+        ag_emit_ldr_imm(&e, AG_COND_AL, 3, 3, 128, AG_POST_INCR);
+        ag_emit_str_imm(&e, AG_COND_AL, 3, 3, -1, AG_POST_INCR);
+
+        ag_emit_vld2_32(&e, 0, 4, 12, 0);
+        ag_emit_vld1_8(&e, 0, 4, 12, 0);
     }
 
     ag_emit_label(&e, l2);

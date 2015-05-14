@@ -69,7 +69,7 @@ enum ag_cond {
 #define AG_SHIFT_LOG_LEFT 0
 #define AG_SHIFT_LOG_RIGHT 1
 
-#define AG_SHIFT_ARITH_LEFT 2
+#define AG_SHIFT_ARITH_RIGHT 2
 #define AG_SHIFT_ROTATE_RIGHT 3
 
 #define AG_SHIFT_AMOUNT(am, type) (((am)<<3) | ((type)<<1))
@@ -219,6 +219,26 @@ AG_FOR_EACH_VR3_IPF(AG_VR3_IPF_GEN_PROTO);
     void ag_emit_##name##_p8(struct ag_Emitter *E, int q, int vd, int vn, int vm); \
 
 AG_FOR_EACH_VR3_USIP(AG_VR3_USIP_GEN_PROTO);
+
+#define AG_PRE_INCR  0x01200000
+#define AG_POST_INCR 0x00200000
+
+
+void ag_emit_vldst1(struct ag_Emitter *e, int vd, int rn, int rm, int align, int opc, int size_bits);
+
+#define AG_VLDST_GEN_PROTO(name, nelem, type, opc, size_bits)           \
+    void ag_emit_##name##nelem##_##type(struct ag_Emitter *e, int vd, int rn, int rm, int align);
+
+AG_FOR_EACH_VLDST(AG_VLDST_GEN_PROTO);
+
+void ag_emit_ldrstr_reg(struct ag_Emitter *e, int opc, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
+
+void ag_emit_ldr_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
+void ag_emit_str_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
+
+void ag_emit_ldrstr_imm(struct ag_Emitter *e, int opc, enum ag_cond cc, int rt, int rn, int imm, int incr);
+void ag_emit_ldr_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
+void ag_emit_str_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
 
 void ag_alloc_code(void **ret, size_t *ret_size,
                    struct ag_Emitter *e); /* do not call twice per ag_Emitter */
