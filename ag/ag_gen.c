@@ -593,7 +593,4 @@ ag_alloc_code(void **ret, size_t *ret_size,
             break;
         }
     }
-
-
-
 }

@@ -47,7 +47,7 @@ main()
 
         ag_emit_movldr_imm(&e, AG_COND_AL, 4, 255);
         ag_emit_movldr_imm(&e, AG_COND_AL, 4, -256);
-        ag_emit_movldr_imm(&e, AG_COND_AL, 4, 0x80800000);
+        ag_emit_movldr_imm(&e, AG_COND_AL, 4, 0xffffffff);
 
         ag_emit_vld2_32(&e, 0, 4, 12, 0);
         ag_emit_vld1_8(&e, 0, 4, 12, 0);
