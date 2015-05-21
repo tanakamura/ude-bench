@@ -21,7 +21,8 @@ typedef ag_label_id_t label_id_t;
 
 enum label_state {
     LABEL_STATE_EMITTED,
-    LABEL_STATE_NOT_EMITTED
+    LABEL_STATE_NOT_EMITTED,
+    LABEL_STATE_EMITTED_DATA
 };
 
 struct Label {
@@ -32,6 +33,7 @@ struct Label {
 
 enum labelref_type {
     LABELREF_TYPE_BRANCH, /* low 23bit, offset -8, shift 2 */
+    LABELREF_TYPE_LDR,    /* low 13bit, offset -8, shift 0 */
 };
 
 struct LabelRef {
@@ -56,17 +58,33 @@ alloc_1block(struct CodeBufferBlock **ret, struct CodeBufferBlock *prev)
 static void
 ag_emit4(struct ag_Emitter *e, uint32_t val)
 {
-    struct CodeBufferBlock *b = e->last;
+    struct CodeBufferBlock *b = e->code_last;
 
     if (b->cur == CODEBUFFER_SIZE) {
-        alloc_1block(&e->last, e->last);
+        alloc_1block(&e->code_last, e->code_last);
     }
 
-    b = e->last;
+    b = e->code_last;
 
     b->buffer[b->cur] = val;
     b->cur++;
     e->cur++;
+}
+
+static void
+ag_emit4_data(struct ag_Emitter *e, uint32_t val)
+{
+    struct CodeBufferBlock *b = e->const_last;
+
+    if (b->cur == CODEBUFFER_SIZE) {
+        alloc_1block(&e->code_last, e->code_last);
+    }
+
+    b = e->const_last;
+
+    b->buffer[b->cur] = val;
+    b->cur++;
+    e->data_cur++;
 }
 
 #define emit4 ag_emit4
@@ -328,6 +346,30 @@ ag_emit_str_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, 
     ag_emit_ldrstr_imm(e, AG_STR_IMM, cc, rt, rn, imm, incr);
 }
 
+void
+ag_emit_movldr_imm(struct ag_Emitter *e, enum ag_cond cc, int rd, int imm)
+{
+    if (imm > 255 || imm < -256) {
+        label_id_t l = ag_emit_new_data_label(e, NULL);
+
+        struct LabelRef ref;
+        ref.type = LABELREF_TYPE_LDR;
+        ref.label_id = l;
+        ref.inst_offset = e->cur;
+
+        VA_PUSH(struct LabelRef, &e->label_refs, ref);
+
+        ag_emit_ldr_imm(e, cc, rd, AG_PC, 0, 0);
+        ag_emit4_data(e, imm);
+    } else if (imm >= 0) {
+        ag_emit_mov_imm(e, cc, 0, rd, 0, imm);
+    } else {
+        ag_emit_mvn_imm(e, cc, 0, rd, 0, ~imm);
+    }
+}
+
+
+
 
 void
 ag_emit_vldst1(struct ag_Emitter *e, int vd, int rn, int rm, int align, int opc, int size)
@@ -351,6 +393,14 @@ ag_emit_label(struct ag_Emitter *e, ag_label_id_t label)
     struct Label *l = VA_ELEM_PTR(struct Label , &e->labels, label);
     l->offset = e->cur;
     l->state = LABEL_STATE_EMITTED;
+}
+
+void
+ag_emit_data_label(struct ag_Emitter *e, ag_label_id_t label)
+{
+    struct Label *l = VA_ELEM_PTR(struct Label , &e->labels, label);
+    l->offset = e->data_cur;
+    l->state = LABEL_STATE_EMITTED_DATA;
 }
 
 ag_label_id_t
@@ -377,6 +427,14 @@ ag_emit_new_label(struct ag_Emitter *e, const char *name /* optional, maybe NULL
     return ret;
 }
 
+ag_label_id_t
+ag_emit_new_data_label(struct ag_Emitter *e, const char *name /* optional, maybe NULL */)
+{
+    ag_label_id_t ret = ag_alloc_label(e, name);
+    ag_emit_data_label(e, ret);
+    return ret;
+}
+
 void
 ag_emitter_init(struct ag_Emitter *e)
 {
@@ -384,10 +442,23 @@ ag_emitter_init(struct ag_Emitter *e)
     e->code = NULL;
     e->code_size = 0;
 
-    alloc_1block(&e->last, NULL);
+    alloc_1block(&e->code_last, NULL);
+    alloc_1block(&e->const_last, NULL);
+
     npr_varray_init(&e->labels, 16, sizeof(struct Label));
     npr_varray_init(&e->label_refs, 16, sizeof(struct LabelRef));
 }
+
+static void
+free_chain(struct CodeBufferBlock *cb)
+{
+    while (cb) {
+        struct CodeBufferBlock *cbn = cb->chain;
+        free(cb);
+        cb = cbn;
+    }
+}
+
 
 void
 ag_emitter_fini(struct ag_Emitter *e)
@@ -396,12 +467,8 @@ ag_emitter_fini(struct ag_Emitter *e)
         munmap(e->code, e->code_size);
     }
 
-    struct CodeBufferBlock *cb = e->last;
-    while (cb) {
-        struct CodeBufferBlock *cbn = cb->chain;
-        free(cb);
-        cb = cbn;
-    }
+    free_chain(e->code_last);
+    free_chain(e->const_last);
 
     int n = e->labels.nelem;
     struct Label *labels = (struct Label*)e->labels.elements;
@@ -415,18 +482,53 @@ ag_emitter_fini(struct ag_Emitter *e)
     npr_varray_discard(&e->label_refs);
 }
 
+static size_t
+block_list_count_byte(struct CodeBufferBlock *cb)
+{
+    size_t byte_count = 0;
+
+    while (cb) {
+        byte_count += cb->cur * INST_SIZE;
+        cb = cb->chain;
+    }
+
+    return byte_count;
+}
+
+
+static void
+emit_code_block(unsigned char *p, struct CodeBufferBlock *cb0, size_t base)
+{
+    struct CodeBufferBlock *cb;
+    unsigned int block_count = 0;
+
+    cb = cb0;
+    while (cb) {
+        block_count++;
+        cb = cb->chain;
+    }
+
+    cb = cb0;
+    for (int i=0; i<block_count; i++) {
+        int d = (block_count - i)-1;
+        size_t offset = d * CODEBUFFER_SIZE * INST_SIZE;
+
+        memcpy(p + offset + base, cb->buffer, cb->cur * INST_SIZE);
+
+        struct CodeBufferBlock *cbn = cb->chain;
+        free(cb);
+        cb = cbn;
+    }
+}
+
+
 void
 ag_alloc_code(void **ret, size_t *ret_size,
               struct ag_Emitter *e)
 {
-    unsigned int byte_count = 0;
-    struct CodeBufferBlock *cb = e->last;
-    unsigned int block_count = 0;
-    while (cb) {
-        byte_count += cb->cur * INST_SIZE;
-        block_count++;
-        cb = cb->chain;
-    }
+    size_t byte_count_code = block_list_count_byte(e->code_last);
+    size_t byte_count_const = block_list_count_byte(e->const_last);
+    size_t byte_count = byte_count_code + byte_count_const;
 
     if (byte_count == 0) {
         *ret = NULL;
@@ -441,20 +543,12 @@ ag_alloc_code(void **ret, size_t *ret_size,
                                             PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANONYMOUS|MAP_PRIVATE,
                                             0, 0);
 
-    cb = e->last;
+    emit_code_block(p, e->code_last, 0);
+    emit_code_block(p, e->const_last, byte_count_code);
 
-    for (int i=0; i<block_count; i++) {
-        int d = (block_count - i)-1;
-        size_t offset = d * CODEBUFFER_SIZE * INST_SIZE;
+    e->code_last = NULL;
+    e->const_last = NULL;
 
-        memcpy(p + offset, cb->buffer, cb->cur * INST_SIZE);
-
-        struct CodeBufferBlock *cbn = cb->chain;
-        free(cb);
-        cb = cbn;
-    }
-
-    e->last = NULL;
     e->code = p;
     e->code_size = alloc_size;
 
@@ -470,7 +564,15 @@ ag_alloc_code(void **ret, size_t *ret_size,
         uint32_t *inst;
         uint32_t inst_val;
 
-        int d = l->offset - lr->inst_offset;
+        uint32_t label_pos;
+
+        if (l->state == LABEL_STATE_EMITTED_DATA) {
+            label_pos = l->offset + (byte_count_code>>2);
+        } else {
+            label_pos = l->offset;
+        }
+
+        int d = label_pos - lr->inst_offset;
 
         switch (lr->type) {
         case LABELREF_TYPE_BRANCH:
@@ -481,6 +583,14 @@ ag_alloc_code(void **ret, size_t *ret_size,
             *inst = inst_val;
             break;
 
+        case LABELREF_TYPE_LDR:
+            inst = &inst_list[lr->inst_offset];
+            inst_val = (*inst) & (~0<<13);
+            d -= 2;
+            d *= 4;
+            inst_val |= d&0x001fff;
+            *inst = inst_val;
+            break;
         }
     }
 

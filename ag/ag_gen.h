@@ -12,7 +12,10 @@ extern "C" {
 
 struct ag_Emitter {
     unsigned int cur;
-    struct CodeBufferBlock *last;
+    unsigned int data_cur;
+
+    struct CodeBufferBlock *code_last;
+    struct CodeBufferBlock *const_last;
 
     struct npr_varray labels;
     struct npr_varray label_refs;
@@ -92,10 +95,12 @@ void ag_emitter_fini(struct ag_Emitter *e);
 typedef unsigned int ag_label_id_t;
 
 void ag_emit_label(struct ag_Emitter *e, ag_label_id_t label);
+void ag_emit_data_label(struct ag_Emitter *e, ag_label_id_t label);
 ag_label_id_t ag_alloc_label(struct ag_Emitter *e, const char *name /* optional, maybe NULL */);
 
 /* alloc & emit label to cursor */
 ag_label_id_t ag_emit_new_label(struct ag_Emitter *e, const char *name /* optional, maybe NULL */);
+ag_label_id_t ag_emit_new_data_label(struct ag_Emitter *e, const char *name /* optional, maybe NULL */);
 
 void ag_emit_bx(struct ag_Emitter *e, enum ag_cond cc, int reg);
 
@@ -166,6 +171,8 @@ int ag_emit_mov_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn
 int ag_emit_bic_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
 int ag_emit_mvn_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
 
+/* ldr rd, =imm */
+void ag_emit_movldr_imm(struct ag_Emitter *e, enum ag_cond cc, int rd, int imm);
 
 void ag_emit_vr3(struct ag_Emitter *E, int opc, int q, int size, int vd, int vn, int vm);
 
