@@ -223,6 +223,13 @@ AG_FOR_EACH_VR3_USIP(AG_VR3_USIP_GEN_PROTO);
 #define AG_PRE_INCR  0x01200000
 #define AG_POST_INCR 0x00200000
 
+void ag_emit_ldstm(struct ag_Emitter *E, enum ag_cond cc, int p, int u, int s, int w, int l, int rn, int reg_bits);
+
+void ag_emit_ldm(struct ag_Emitter *E, enum ag_cond cc, int p, int u, int s, int w, int rn, int reg_bits);
+void ag_emit_stm(struct ag_Emitter *E, enum ag_cond cc, int p, int u, int s, int w, int rn, int reg_bits);
+void ag_emit_push(struct ag_Emitter *e, enum ag_cond cc, int reg_bits);
+void ag_emit_pop(struct ag_Emitter *e, enum ag_cond cc, int reg_bits);
+
 
 void ag_emit_vldst1(struct ag_Emitter *e, int vd, int rn, int rm, int align, int opc, int size_bits);
 

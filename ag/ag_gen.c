@@ -267,6 +267,38 @@ ag_emit_str_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, i
     ag_emit_ldrstr_reg(e, AG_STR_REG, cc, rt, rn, rm, shift, add, incr);
 }
 
+void
+ag_emit_ldstm(struct ag_Emitter *e, enum ag_cond cc, int p, int u, int s, int w, int l, int rn, int reg_bits)
+{
+    emit4(e, (cc<<28) | 0x08000000 | (p<<24) | (u<<23) | (s<<22) | (w<<21) | (l<<20) | (rn<<16) | reg_bits);
+}
+
+void
+ag_emit_ldm(struct ag_Emitter *e, enum ag_cond cc, int p, int u, int s, int w, int rn, int reg_bits)
+{
+    ag_emit_ldstm(e, cc, p, u, s, w, 1, rn, reg_bits);
+}
+void
+ag_emit_stm(struct ag_Emitter *e, enum ag_cond cc, int p, int u, int s, int w, int rn, int reg_bits)
+{
+    ag_emit_ldstm(e, cc, p, u, s, w, 0, rn, reg_bits);
+}
+
+void
+ag_emit_push(struct ag_Emitter *e, enum ag_cond cc, int reg_bits)
+{
+    ag_emit_ldstm(e, cc, 1, 0, 0, 1, 0, AG_SP, reg_bits);
+}
+
+void
+ag_emit_pop(struct ag_Emitter *e, enum ag_cond cc, int reg_bits)
+{
+    ag_emit_ldstm(e, cc, 0, 1, 0, 1, 1, AG_SP, reg_bits);
+}
+
+
+
+
 
 void
 ag_emit_ldrstr_imm(struct ag_Emitter *e, int opc, enum ag_cond cc, int rt, int rn, int imm, int incr)
