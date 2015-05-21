@@ -21,6 +21,8 @@ main()
 
         ag_emit_add_imm(&e, AG_COND_GT, 1, R0, R1, 100);
         ag_emit_and_imm(&e, AG_COND_GT, 1, R0, R1, 100);
+        ag_emit_cmp_imm(&e, AG_COND_GT, 4, 100);
+        ag_emit_cmp_reg(&e, AG_COND_GT, 4, 4, 0);
 
         ag_emit_vadd_i32(&e, 0, 0, 1, 2);
         ag_emit_vadd_i8(&e, 0, 31, 31, 31);
@@ -47,7 +49,7 @@ main()
 
         ag_emit_movldr_imm(&e, AG_COND_AL, 4, 255);
         ag_emit_movldr_imm(&e, AG_COND_AL, 4, -256);
-        ag_emit_movldr_imm(&e, AG_COND_AL, 4, 0xffffffff);
+        ag_emit_movldr_imm(&e, AG_COND_AL, 4, 0xffff0fff);
 
         ag_emit_vld2_32(&e, 0, 4, 12, 0);
         ag_emit_vld1_8(&e, 0, 4, 12, 0);

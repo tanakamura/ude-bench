@@ -104,7 +104,8 @@ ag_label_id_t ag_emit_new_data_label(struct ag_Emitter *e, const char *name /* o
 
 void ag_emit_bx(struct ag_Emitter *e, enum ag_cond cc, int reg);
 
-void ag_emit_b0(struct ag_Emitter *e, enum ag_cond cc, int l, ag_label_id_t dst);
+void ag_emit_branch(struct ag_Emitter *e, enum ag_cond cc, int l, ag_label_id_t dst);
+
 void ag_emit_b(struct ag_Emitter *e, enum ag_cond cc, ag_label_id_t dst);
 void ag_emit_bl(struct ag_Emitter *e, enum ag_cond cc, ag_label_id_t dst);
 
@@ -142,8 +143,8 @@ void ag_emit_rsc_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int r
 
 void ag_emit_tst_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
 void ag_emit_teq_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
-void ag_emit_cmp_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
-void ag_emit_cmn_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
+void ag_emit_cmp_reg(struct ag_Emitter *e, enum ag_cond cc, int rm, int rn, int shift);
+void ag_emit_cmn_reg(struct ag_Emitter *e, enum ag_cond cc, int rm, int rn, int shift);
 void ag_emit_orr_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
 void ag_emit_mov_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
 void ag_emit_bic_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
@@ -164,8 +165,8 @@ int ag_emit_rsc_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn
 
 int ag_emit_tst_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
 int ag_emit_teq_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
-int ag_emit_cmp_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
-int ag_emit_cmn_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
+int ag_emit_cmp_imm(struct ag_Emitter *e, enum ag_cond cc, int rn, int imm);
+int ag_emit_cmn_imm(struct ag_Emitter *e, enum ag_cond cc, int rn, int imm);
 int ag_emit_orr_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
 int ag_emit_mov_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);
 int ag_emit_bic_imm(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rn, int imm);

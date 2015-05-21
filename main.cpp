@@ -82,8 +82,13 @@ gen(struct ag_Emitter *e,
      */
 
     ag_emit_push(e, AG_COND_AL, 0b1111110000);
+    ag_emit_movldr_imm(e, AG_COND_AL, 8, num_loop - 1);
 
-    
+    ag_label_id_t loop_head = ag_emit_new_label(e, NULL);
+
+    ag_emit_sub_imm(e, AG_COND_AL, 1, 8, 8, 1);
+    ag_emit_cmp_reg(e, AG_COND_AL, 8, 8, 0);
+    ag_emit_b(e, AG_COND_EQ, loop_head);
 
     ag_emit_pop(e, AG_COND_AL, 0b1111110000);
 
@@ -188,7 +193,7 @@ struct Gen
         mov(rsp, rbp);
         pop(rbp);
         ret();
-            
+
         /*
          * latency:
          *
@@ -257,6 +262,17 @@ lt(const char *name,
     size_t code_size;
 
     ag_alloc_code(&code, &code_size, &e);
+
+#ifdef EMIT_ONLY
+    FILE *fp = fopen("test.bin", "wb");
+    fwrite(code, 1, code_size, fp);
+    fclose(fp);
+#else
+    FILE *fp = fopen("/sdcard/test.bin", "wb");
+    fwrite(code, 1, code_size, fp);
+    fclose(fp);
+
+
     func_t exec = (func_t)code;
     exec();
 
@@ -269,6 +285,8 @@ lt(const char *name,
            name, on,
            (te-tb)/(double)(num_insn * num_loop), 
            (num_insn * num_loop)/(double)(te-tb));
+#endif
+
 
     ag_emitter_fini(&e);
 }
@@ -320,7 +338,6 @@ main()
 {
     struct perf_event_attr attr;
     long long tstart, tend;
-    int i;
 
     memset(&attr, 0, sizeof(attr));
 

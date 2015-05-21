@@ -96,7 +96,7 @@ ag_emit_bx(struct ag_Emitter *e, enum ag_cond cc, int reg)
 }
 
 void
-ag_emit_b0(struct ag_Emitter *e, enum ag_cond cc, int l, label_id_t dst)
+ag_emit_branch(struct ag_Emitter *e, enum ag_cond cc, int l, label_id_t dst)
 {
     struct Label *label = VA_ELEM_PTR(struct Label, &e->labels, dst);
     int32_t off = 0;
@@ -118,12 +118,12 @@ ag_emit_b0(struct ag_Emitter *e, enum ag_cond cc, int l, label_id_t dst)
 void
 ag_emit_b(struct ag_Emitter *e, enum ag_cond cc, label_id_t dst)
 {
-    ag_emit_b0(e, cc, 0, dst);
+    ag_emit_branch(e, cc, 0, dst);
 }
 void
 ag_emit_bl(struct ag_Emitter *e, enum ag_cond cc, label_id_t dst)
 {
-    ag_emit_b0(e, cc, 1, dst);
+    ag_emit_branch(e, cc, 1, dst);
 }
 
 void
@@ -170,8 +170,32 @@ DATA_PROCESS(rsc, AG_RSC)
 
 DATA_PROCESS(tst, AG_TST)
 DATA_PROCESS(teq, AG_TEQ)
-DATA_PROCESS(cmp, AG_CMP)
-DATA_PROCESS(cmn, AG_CMN)
+//DATA_PROCESS(cmp, AG_CMP)
+
+void
+ag_emit_cmp_reg(struct ag_Emitter *e, enum ag_cond cc, int rm, int rn, int shift)
+{
+    ag_emit_data_process_reg(e, cc, AG_CMP, 1, 0, rn, rm, shift);
+}
+int
+ag_emit_cmp_imm(struct ag_Emitter *e, enum ag_cond cc,int rn, int imm)
+{
+    return ag_emit_data_process_imm(e, cc, AG_CMP, 1, 0, rn, imm);
+}
+
+//DATA_PROCESS(cmn, AG_CMN)
+
+void
+ag_emit_cmn_reg(struct ag_Emitter *e, enum ag_cond cc, int rm, int rn, int shift)
+{
+    ag_emit_data_process_reg(e, cc, AG_CMN, 1, 0, rn, rm, shift);
+}
+int
+ag_emit_cmn_imm(struct ag_Emitter *e, enum ag_cond cc,int rn, int imm)
+{
+    return ag_emit_data_process_imm(e, cc, AG_CMN, 1, 0, rn, imm);
+}
+
 DATA_PROCESS(orr, AG_ORR)
 DATA_PROCESS(mov, AG_MOV)
 DATA_PROCESS(bic, AG_BIC)
