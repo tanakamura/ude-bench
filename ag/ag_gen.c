@@ -128,7 +128,7 @@ ag_emit_bl(struct ag_Emitter *e, enum ag_cond cc, label_id_t dst)
 
 void
 ag_emit_data_process_reg(struct ag_Emitter *e, enum ag_cond cc, enum ag_data_process_opcode opc,
-                         int s, int rd, int shift, int rn, int rm)
+                         int s, int rd, int rn, int rm, int shift)
 {
     emit4(e, (cc<<28) | (opc<<21) | (s<<20) | (rn<<16) | (rd<<12) | (shift<<4) | rm);
 }
@@ -463,6 +463,7 @@ void
 ag_emitter_init(struct ag_Emitter *e)
 {
     e->cur = 0;
+    e->data_cur = 0;
     e->code = NULL;
     e->code_size = 0;
 
@@ -609,7 +610,7 @@ ag_alloc_code(void **ret, size_t *ret_size,
 
         case LABELREF_TYPE_LDR:
             inst = &inst_list[lr->inst_offset];
-            inst_val = (*inst) & (~0<<13);
+            inst_val = (*inst) & (~0<<12);
             d -= 2;
             d *= 4;
             inst_val |= d&0x001fff;

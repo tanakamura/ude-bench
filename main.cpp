@@ -82,13 +82,17 @@ gen(struct ag_Emitter *e,
      */
 
     ag_emit_push(e, AG_COND_AL, 0b1111110000);
-    ag_emit_movldr_imm(e, AG_COND_AL, 8, num_loop - 1);
+    ag_emit_movldr_imm(e, AG_COND_AL, 8, num_loop);
+    ag_emit_movldr_imm(e, AG_COND_AL, 9, (uintptr_t)&zero_mem);
 
     ag_label_id_t loop_head = ag_emit_new_label(e, NULL);
 
+    //ag_emit_add_imm(e, AG_COND_AL, 0, 8, 8, 1);
+    //ag_emit_cmp_reg(e, AG_COND_AL, 8, 10, 0);
+    //ag_emit_b(e, AG_COND_LT, loop_head);
+
     ag_emit_sub_imm(e, AG_COND_AL, 1, 8, 8, 1);
-    ag_emit_cmp_reg(e, AG_COND_AL, 8, 8, 0);
-    ag_emit_b(e, AG_COND_EQ, loop_head);
+    ag_emit_b(e, AG_COND_NE, loop_head);
 
     ag_emit_pop(e, AG_COND_AL, 0b1111110000);
 

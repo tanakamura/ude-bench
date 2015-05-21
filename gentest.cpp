@@ -16,8 +16,8 @@ main()
         ag_emit_bl(&e, AG_COND_AL, l1);
         ag_emit_bl(&e, AG_COND_AL, l2);
         ag_emit_bx(&e, AG_COND_AL, LR);
-        ag_emit_add_reg(&e, AG_COND_GT, 1, R0, R1, AG_LSL_REG(1), R2);
-        ag_emit_and_reg(&e, AG_COND_GT, 1, R0, R1, AG_LSL_REG(1), R2);
+        ag_emit_add_reg(&e, AG_COND_GT, 1, R0, R1, R2, AG_LSL_REG(1));
+        ag_emit_and_reg(&e, AG_COND_GT, 0, R9, R1, R2, AG_LSL_REG(1));
 
         ag_emit_add_imm(&e, AG_COND_GT, 1, R0, R1, 100);
         ag_emit_and_imm(&e, AG_COND_GT, 1, R0, R1, 100);
