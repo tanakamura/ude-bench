@@ -7,6 +7,7 @@
 
 #define AG_FOR_EACH_VR3_IF(F)                      \
     F(vadd, AG_NEON_VR3_ADDI, AG_NEON_VR3_ADDF)    \
+    F(vmla, AG_NEON_VR3_ADDI, AG_NEON_VR3_ADDF)    \
 
 
 #define AG_NEON_VR3_VPMAXS 0x02000a00
@@ -63,10 +64,32 @@
     AG_FOR_EACH_VLDST_NELEM(F, 16, 1)                                     \
     AG_FOR_EACH_VLDST_NELEM(F, 32, 2)
 
-#define AG_LDR_REG 0x06100000
-#define AG_STR_REG 0x06000000
+/* 20:L, 6:S, 5:H *
+ *   28   24   20   16     12    8    4    0
+ * 0000 0000 0000 0000 | 0000 0000 0000 0000
+ *              L                   SH
+ * LSH
+ * ---
+ * 000 str
+ * 001 strh
+ * 010 ldrdw
+ * 011 strdw
+ * 100 ldr
+ * 101 ldrh
+ * 110 ldrb
+ * 111 strb
+ */
 
-#define AG_LDR_IMM 0x05100000
-#define AG_STR_IMM 0x05000000
+#define AG_LSH(L,S,H) (((L)<<20) | ((S)<<6) | ((H)<<5))
+
+#define AG_LDR_REG  (0x06100000)
+#define AG_STR_REG  (0x06000000)
+#define AG_LDRB_REG (0x06500000)
+#define AG_STRB_REG (0x06400000)
+
+#define AG_LDR_IMM  (0x05100000)
+#define AG_STR_IMM  (0x05000000)
+#define AG_LDRB_IMM (0x05500000)
+#define AG_STRB_IMM (0x05400000)
 
 #endif

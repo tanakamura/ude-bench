@@ -150,6 +150,8 @@ void ag_emit_mov_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int r
 void ag_emit_bic_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
 void ag_emit_mvn_reg(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rn, int shift);
 
+void ag_emit_mul(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rs);
+void ag_emit_mla(struct ag_Emitter *e, enum ag_cond cc, int s, int rd, int rm, int rs, int rn);
 
 /* return negative if imm is out of range */
 int ag_emit_data_process_imm(struct ag_Emitter *e, enum ag_cond cc, enum ag_data_process_opcode opc,
@@ -228,15 +230,40 @@ AG_FOR_EACH_VR3_IPF(AG_VR3_IPF_GEN_PROTO);
 
 AG_FOR_EACH_VR3_USIP(AG_VR3_USIP_GEN_PROTO);
 
-#define AG_PRE_INCR  0x01200000
-#define AG_POST_INCR 0x00200000
+
+void ag_emit_vdup(struct ag_Emitter *e, enum ag_cond cc, int opc, int q, int vd, int  rt);
+void ag_emit_vdup8(struct ag_Emitter *e, enum ag_cond cc, int q, int vd, int  rt);
+void ag_emit_vdup16(struct ag_Emitter *e, enum ag_cond cc, int q, int vd, int  rt);
+void ag_emit_vdup32(struct ag_Emitter *e, enum ag_cond cc, int q, int vd, int  rt);
+
+void ag_emit_vcvt(struct ag_Emitter *e, int opc, int q, int vd, int vm);
+void ag_emit_vcvt_f32_s32(struct ag_Emitter *e, int q, int vd, int vm);
+void ag_emit_vcvt_s32_f32(struct ag_Emitter *e, int q, int vd, int vm);
+
+#define AG_PRE_INCR    0x01200000
+#define AG_POST_INCR   0x00200000
+#define AG_OFFSET_ADDR 0x01000000
 
 void ag_emit_ldstm(struct ag_Emitter *E, enum ag_cond cc, int p, int u, int s, int w, int l, int rn, int reg_bits);
 
 void ag_emit_ldm(struct ag_Emitter *E, enum ag_cond cc, int p, int u, int s, int w, int rn, int reg_bits);
+
+#define ag_emit_ldmda(E, cc, w, rn, reg_bits) ag_emit_ldm(E, cc, 0, 0, 0, w, rn, reg_bits)
+#define ag_emit_ldmia(E, cc, w, rn, reg_bits) ag_emit_ldm(E, cc, 0, 1, 0, w, rn, reg_bits)
+#define ag_emit_ldmdb(E, cc, w, rn, reg_bits) ag_emit_ldm(E, cc, 1, 0, 0, w, rn, reg_bits)
+#define ag_emit_ldmib(E, cc, w, rn, reg_bits) ag_emit_ldm(E, cc, 1, 1, 0, w, rn, reg_bits)
+
+
 void ag_emit_stm(struct ag_Emitter *E, enum ag_cond cc, int p, int u, int s, int w, int rn, int reg_bits);
+#define ag_emit_stmda(E, cc, w, rn, reg_bits) ag_emit_stm(E, cc, 0, 0, 0, w, rn, reg_bits)
+#define ag_emit_stmia(E, cc, w, rn, reg_bits) ag_emit_stm(E, cc, 0, 1, 0, w, rn, reg_bits)
+#define ag_emit_stmdb(E, cc, w, rn, reg_bits) ag_emit_stm(E, cc, 1, 0, 0, w, rn, reg_bits)
+#define ag_emit_stmib(E, cc, w, rn, reg_bits) ag_emit_stm(E, cc, 1, 1, 0, w, rn, reg_bits)
+
 void ag_emit_push(struct ag_Emitter *e, enum ag_cond cc, int reg_bits);
 void ag_emit_pop(struct ag_Emitter *e, enum ag_cond cc, int reg_bits);
+
+
 
 
 void ag_emit_vldst1(struct ag_Emitter *e, int vd, int rn, int rm, int align, int opc, int size_bits);
@@ -249,11 +276,22 @@ AG_FOR_EACH_VLDST(AG_VLDST_GEN_PROTO);
 void ag_emit_ldrstr_reg(struct ag_Emitter *e, int opc, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
 
 void ag_emit_ldr_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
+void ag_emit_ldrh_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
+void ag_emit_ldrb_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
 void ag_emit_str_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
+void ag_emit_strh_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
+void ag_emit_strb_reg(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int rm, int shift, int add, int incr);
 
 void ag_emit_ldrstr_imm(struct ag_Emitter *e, int opc, enum ag_cond cc, int rt, int rn, int imm, int incr);
 void ag_emit_ldr_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
+void ag_emit_ldrh_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
+void ag_emit_ldrb_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
 void ag_emit_str_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
+void ag_emit_strh_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
+void ag_emit_strb_imm(struct ag_Emitter *e, enum ag_cond cc, int rt, int rn, int imm, int incr);
+
+void ag_emit_ldrex(struct ag_Emitter *e, enum ag_cond cc, int rd, int rn);
+void ag_emit_strex(struct ag_Emitter *e, enum ag_cond cc, int rd, int rm, int rn);
 
 void ag_alloc_code(void **ret, size_t *ret_size,
                    struct ag_Emitter *e); /* do not call twice per ag_Emitter */

@@ -38,13 +38,16 @@ char __attribute__((aligned(64))) zero_mem[4096*8];
 enum lt_op {
     LT_LATENCY,
     LT_THROUGHPUT,
-    LT_THROUGHPUT_KILLDEP
+    LT_THROUGHPUT_RENAME
 };
 
 enum operand_type {
     OT_INT,
     OT_FP32,
-    OT_FP64
+    OT_FP64,
+    OT_F32x1,
+    OT_F32x2,
+    OT_F32x4
 };
 
 enum regtype {
@@ -54,11 +57,12 @@ enum regtype {
 };
 
 static const char *regtype_name_table[] = {
-    "gen",
+    "generic",
     "neon64",
     "neon128"
 };
 
+#define ZEROMEM_PTR_REG 11
 
 template <typename F>
 static void
@@ -76,173 +80,72 @@ gen(struct ag_Emitter *e,
      * r14                            lr       (callee save)
      */
 
-    /* r0-r7 : operand register
-     * r8 : loop counter
-     * r9 : ptr to zero mem
+    /* r0-r9 : operand register
+     * r10 : loop counter
+     * r11 : ptr to zero mem
      */
 
-    ag_emit_push(e, AG_COND_AL, 0b1111110000);
-    ag_emit_movldr_imm(e, AG_COND_AL, 8, num_loop);
-    ag_emit_movldr_imm(e, AG_COND_AL, 9, (uintptr_t)&zero_mem);
+    /* save r4-r11 */
+    /*                            109876543210 */
+    ag_emit_push(e, AG_COND_AL, 0b111111110000);
+    ag_emit_movldr_imm(e, AG_COND_AL, 10, num_loop);
+    ag_emit_movldr_imm(e, AG_COND_AL, ZEROMEM_PTR_REG, (uintptr_t)&zero_mem);
+
+    for (int i=0; i<10; i++) {
+        ag_emit_movldr_imm(e, AG_COND_AL, i, 0);
+    }
+
+    for (int i=0; i<16; i++) {
+        ag_emit_vdup32(e, AG_COND_AL, 1, i*2, 0);
+    }
+
 
     ag_label_id_t loop_head = ag_emit_new_label(e, NULL);
 
-    //ag_emit_add_imm(e, AG_COND_AL, 0, 8, 8, 1);
-    //ag_emit_cmp_reg(e, AG_COND_AL, 8, 10, 0);
-    //ag_emit_b(e, AG_COND_LT, loop_head);
+    switch (o) {
+    case LT_LATENCY:
+        for (int ii=0; ii<num_insn; ii++) {
+            f(e, 0, 0);
+        }
+        break;
 
-    ag_emit_sub_imm(e, AG_COND_AL, 1, 8, 8, 1);
+    case LT_THROUGHPUT:
+        for (int ii=0; ii<num_insn/8; ii++) {
+            f(e, 0, 1);
+            f(e, 0, 2);
+            f(e, 0, 3);
+            f(e, 0, 4);
+
+            f(e, 0, 5);
+            f(e, 0, 6);
+            f(e, 0, 7);
+            f(e, 0, 8);
+        }
+        break;
+
+    case LT_THROUGHPUT_RENAME:
+        for (int ii=0; ii<num_insn/8; ii++) {
+            f(e, 0, 0);
+            f(e, 1, 1);
+            f(e, 2, 2);
+            f(e, 3, 3);
+
+            f(e, 4, 4);
+            f(e, 5, 5);
+            f(e, 6, 6);
+            f(e, 7, 7);
+        }
+        break;
+    }
+
+
+    ag_emit_sub_imm(e, AG_COND_AL, 1, 10, 10, 1);
     ag_emit_b(e, AG_COND_NE, loop_head);
 
-    ag_emit_pop(e, AG_COND_AL, 0b1111110000);
+    ag_emit_pop(e, AG_COND_AL, 0b111111110000);
 
     ag_emit_bx(e, AG_COND_AL, AG_LR);
 }
-
-#if 0
-template <enum regtype RegType,
-          typename F>
-struct Gen
-{
-    Gen(struct ag_Emitter *e, F f, int num_loop, int num_insn, enum lt_op o, enum operand_type ot) {
-        ag_emit_bx(e, AG_COND_AL, AG_LR);
-        RegMap<RegType> rm;
-
-        push(rbp);
-        mov(rbp, rsp);
-        and_(rsp, -(Xbyak::sint64)32);
-        sub(rsp, 32 * 9);
-
-        rm.save(this, rm.v8,  -32*8, ot);
-        rm.save(this, rm.v9,  -32*7, ot);
-        rm.save(this, rm.v10, -32*6, ot);
-        rm.save(this, rm.v11, -32*5, ot);
-        rm.save(this, rm.v12, -32*4, ot);
-        rm.save(this, rm.v13, -32*3, ot);
-        rm.save(this, rm.v14, -32*2, ot);
-        rm.save(this, rm.v15, -32*1, ot);
-
-        rm.killdep(this, rm.v8, ot);
-        rm.killdep(this, rm.v9, ot);
-        rm.killdep(this, rm.v10, ot);
-        rm.killdep(this, rm.v11, ot);
-        rm.killdep(this, rm.v12, ot);
-        rm.killdep(this, rm.v13, ot);
-        rm.killdep(this, rm.v14, ot);
-        rm.killdep(this, rm.v15, ot);
-
-        mov(rcx, num_loop);
-        mov(rdx, (intptr_t)zero_mem);
-        mov(ptr[rsp], rdi);
-        xor_(rdi, rdi);
-
-        L("@@");
-
-        switch (o) {
-        case LT_LATENCY:
-            for (int ii=0; ii<num_insn; ii++) {
-                f(this, rm.v8, rm.v8);
-            }
-            break;
-
-        case LT_THROUGHPUT:
-            for (int ii=0; ii<num_insn/8; ii++) {
-                f(this, rm.v8, rm.v8);
-                f(this, rm.v9, rm.v9);
-                f(this, rm.v10, rm.v10);
-                f(this, rm.v11, rm.v11);
-                f(this, rm.v12, rm.v12);
-                f(this, rm.v13, rm.v13);
-                f(this, rm.v14, rm.v14);
-                f(this, rm.v15, rm.v15);
-            }
-            break;
-
-        case LT_THROUGHPUT_KILLDEP:
-            for (int ii=0; ii<num_insn/8; ii++) {
-                f(this, rm.v8, rm.v8);
-                f(this, rm.v9, rm.v9);
-                f(this, rm.v10, rm.v10);
-                f(this, rm.v11, rm.v11);
-                f(this, rm.v12, rm.v12);
-                f(this, rm.v13, rm.v13);
-                f(this, rm.v14, rm.v14);
-                f(this, rm.v15, rm.v15);
-            }
-
-            rm.killdep(this, rm.v8, ot);
-            rm.killdep(this, rm.v9, ot);
-            rm.killdep(this, rm.v10, ot);
-            rm.killdep(this, rm.v11, ot);
-            rm.killdep(this, rm.v12, ot);
-            rm.killdep(this, rm.v13, ot);
-            rm.killdep(this, rm.v14, ot);
-            rm.killdep(this, rm.v15, ot);
-            break;
-        }
-
-        dec(rcx);
-        jnz("@b");
-
-        mov(rdi, ptr[rsp]);
-        rm.restore(this, rm.v8,  -32*8, ot);
-        rm.restore(this, rm.v9,  -32*7, ot);
-        rm.restore(this, rm.v10, -32*6, ot);
-        rm.restore(this, rm.v11, -32*5, ot);
-        rm.restore(this, rm.v12, -32*4, ot);
-        rm.restore(this, rm.v13, -32*3, ot);
-        rm.restore(this, rm.v14, -32*2, ot);
-        rm.restore(this, rm.v15, -32*1, ot);
-
-        mov(rsp, rbp);
-        pop(rbp);
-        ret();
-
-        /*
-         * latency:
-         *
-         *       mov rcx, count
-         * loop:
-         *       op reg, reg
-         *       op reg, reg
-         *       ...
-         *       op reg, reg
-         *       dec rcx
-         *       jne loop
-         *
-         */
-
-        /*
-         * throughput
-         *
-         *       mov rcx, count
-         * loop:
-         *       op reg8, reg8
-         *       op reg9, reg9
-         *       ...
-         *       op reg15, reg15
-         *       op reg8, reg8
-         *       op reg9, reg9
-         *       ...
-         *       op reg15, reg15
-         *       ...
-         *       if kill_dep {
-         *       xor r8
-         *       xor r9
-         *       ...
-         *       xor r15
-         *       }
-         *       dec rcx
-         *       jne loop
-         *
-         */
-
-    }
-
-};
-#endif
-
-
 
 
 
@@ -260,7 +163,6 @@ lt(const char *name,
     ag_emitter_init(&e);
 
     gen(&e, rt, f, num_loop, num_insn, o, ot);
-    typedef void (*func_t)(void);
 
     void *code;
     size_t code_size;
@@ -272,10 +174,10 @@ lt(const char *name,
     fwrite(code, 1, code_size, fp);
     fclose(fp);
 #else
+    typedef void (*func_t)(void);
     FILE *fp = fopen("/sdcard/test.bin", "wb");
     fwrite(code, 1, code_size, fp);
     fclose(fp);
-
 
     func_t exec = (func_t)code;
     exec();
@@ -284,7 +186,7 @@ lt(const char *name,
     exec();
     uint64_t te = read_cycle();
 
-    printf("%8s:%10s:%10s: CPI=%8.2f, IPC=%8.2f\n",
+    printf("%8s : %50s : %15s : CPI=%8.2f, IPC=%8.2f\n",
            regtype_name_table[(int)rt],
            name, on,
            (te-tb)/(double)(num_insn * num_loop), 
@@ -300,48 +202,54 @@ lt(const char *name,
 
 template <typename F>
 void
-run(const char *name, enum regtype rt, F f, bool kill_dep, enum operand_type ot)
+run(const char *name, enum regtype rt, F f, enum operand_type ot, int num_insn)
 {
-    lt(name, "latency", rt, f, NUM_LOOP, 16, LT_LATENCY, ot);
-    if (kill_dep) {
-        lt(name, "throughput", rt, f, NUM_LOOP, 16, LT_THROUGHPUT_KILLDEP, ot);
-    } else {
-        lt(name, "throughput", rt, f, NUM_LOOP, 16, LT_THROUGHPUT, ot);
-    }
+    lt(name, "latency", rt, f, NUM_LOOP, num_insn, LT_LATENCY, ot);
+    lt(name, "throughput", rt, f, NUM_LOOP, num_insn, LT_THROUGHPUT, ot);
+    lt(name, "rename", rt, f, NUM_LOOP, num_insn, LT_THROUGHPUT_RENAME, ot);
 }
 
-template <typename F_t, typename F_l>
+template <typename F>
 void
-run_latency(const char *name, enum regtype rt, F_t f_t, F_l f_l, bool kill_dep, enum operand_type ot)
+run_latency(const char *name, enum regtype rt, F f, enum operand_type ot, int num_insn)
 {
-    lt(name, "latency", rt, f_l, NUM_LOOP, 16, LT_LATENCY, ot);
-    if (kill_dep) {
-        lt(name, "throughput", rt, f_t, NUM_LOOP, 16, LT_THROUGHPUT_KILLDEP, ot);
-    } else {
-        lt(name, "throughput", rt, f_t, NUM_LOOP, 16, LT_THROUGHPUT, ot);
-    }
+    lt(name, "latency", rt, f, NUM_LOOP, num_insn, LT_LATENCY, ot);
 }
 
-#define GEN(rt, name, expr, kd, ot)                                     \
+template <typename F>
+void
+run_throughput(const char *name, enum regtype rt, F f, enum operand_type ot, int num_insn)
+{
+    lt(name, "throughput", rt, f, NUM_LOOP, num_insn, LT_THROUGHPUT_RENAME, ot);
+    lt(name, "rename", rt, f, NUM_LOOP, num_insn, LT_THROUGHPUT_RENAME, ot);
+}
+
+#define GEN(rt, name, expr, ot)                                          \
     run(                                                                \
     name,                                                               \
     rt,                                                                 \
     [](struct ag_Emitter *e, int dst, int src){expr;},                  \
-    kd, ot);
+    ot, num_insn);
 
 
-#define GEN_latency(rt, name, expr_t, expr_l, kd, ot)                   \
-    run_latency<rt>(                                                    \
-    name,                                                               \
-    [](Xbyak::CodeGenerator *g, Xbyak::rt dst, Xbyak::rt src){expr_t;}, \
-    [](Xbyak::CodeGenerator *g, Xbyak::rt dst, Xbyak::rt src){expr_l;}, \
-    kd, ot);
+#define GEN_latency(rt, name, expr, ot)                               \
+    run_latency(                                                        \
+        name,                                                           \
+        rt,                                                             \
+        [](struct ag_Emitter *e, int dst, int src){expr;},              \
+        ot, num_insn);
+
+#define GEN_throughput(rt, name, expr, ot)                               \
+    run_throughput(                                                     \
+        name,                                                           \
+        rt,                                                             \
+        [](struct ag_Emitter *e, int dst, int src){expr;},              \
+        ot, num_insn);
 
 int
 main()
 {
     struct perf_event_attr attr;
-    long long tstart, tend;
 
     memset(&attr, 0, sizeof(attr));
 
@@ -355,246 +263,160 @@ main()
         exit(1);
     }
 
-    read(perf_fd, &tstart, 8);
-    read(perf_fd, &tend, 8);
+    int num_insn = 16;
+    while (num_insn <= 256) {
+        printf("== num_insn = %d ==\n", num_insn);
 
-    printf("%lld\n", tend-tstart);
+        GEN(REG_GEN, "add rd, rm, rn",
+            ag_emit_add_reg(e, AG_COND_AL, 0, dst, src, src, 0),
+            OT_INT);
 
-    printf("== latency/throughput ==\n");
-    GEN(REG_GEN, "add", , false, OT_INT);
+        GEN(REG_GEN, "adds rd, rm, rn",
+            ag_emit_add_reg(e, AG_COND_AL, 1, dst, src, src, 0),
+            OT_INT);
 
-}
+        GEN(REG_GEN, "add rd, rm, rn, lsl #4",
+            ag_emit_add_reg(e, AG_COND_AL, 1, dst, src, src, AG_LSL_AM(4)),
+            OT_INT);
 
+        GEN(REG_GEN, "add rd, rm, imm",
+            ag_emit_add_imm(e, AG_COND_AL, 0, dst, src, 100),
+            OT_INT);
 
+        GEN(REG_GEN, "add rd, rm, pc",
+            ag_emit_add_reg(e, AG_COND_AL, 0, dst, src, AG_PC, AG_LSL_AM(4)),
+            OT_INT);
 
-#if 0
+        GEN_latency(REG_GEN, "add pc, pc, 0",
+                    ag_emit_add_imm(e, AG_COND_AL, 0, AG_PC, AG_PC, 0),
+                    OT_INT);
 
-template <typename T> struct RegMap;
+        GEN(REG_GEN, "orr rd, rm, rn",
+            ag_emit_orr_reg(e, AG_COND_AL, 0, dst, src, src, 0),
+            OT_INT);
 
-template <>
-struct RegMap<Xbyak::Xmm>
-{
-    const char *name;
-    Xbyak::Xmm v8, v9, v10, v11, v12, v13, v14, v15;
+        GEN(REG_GEN, "eor rd, rm, rn",
+            ag_emit_orr_reg(e, AG_COND_AL, 0, dst, src, src, 0),
+            OT_INT);
 
-    RegMap()
-        :name("m128"), v8(8), v9(9), v10(10), v11(11), v12(12), v13(13), v14(14), v15(15)
-        {}
+        GEN(REG_GEN, "mul rd, rm, rs",
+            ag_emit_mul(e, AG_COND_AL, 0, dst, src, src),
+            OT_INT);
 
-    void save(Xbyak::CodeGenerator *g, Xbyak::Xmm r, int off, enum operand_type ot) {
-        switch (ot) {
-        case OT_INT:
-            g->movdqa(g->ptr [g->rsp + off], r);
-            break;
-        case OT_FP32:
-            g->movaps(g->ptr [g->rsp + off], r);
-            break;
-        case OT_FP64:
-            g->movapd(g->ptr [g->rsp + off], r);
-            break;
-        }
-    }
+        GEN(REG_GEN, "mla rd, rm, rs, rn",
+            ag_emit_mla(e, AG_COND_AL, 0, dst, src, src, src),
+            OT_INT);
 
-    void restore(Xbyak::CodeGenerator *g, Xbyak::Xmm r, int off, enum operand_type ot) {
-        switch (ot) {
-        case OT_INT:
-            g->movdqa(r, g->ptr [g->rsp + off]);
-            break;
-        case OT_FP32:
-            g->movaps(r, g->ptr [g->rsp + off]);
-            break;
-        case OT_FP64:
-            g->movapd(r, g->ptr [g->rsp + off]);
-            break;
-        }
-    }
+        GEN(REG_GEN, "ldr rt, [rn, rm]",
+            ag_emit_ldr_reg(e, AG_COND_AL, dst, ZEROMEM_PTR_REG, src, 0, 1, AG_OFFSET_ADDR),
+            OT_INT);
 
-    void killdep(Xbyak::CodeGenerator *g, Xbyak::Xmm r, enum operand_type ot) {
-        switch (ot) {
-        case OT_INT:
-            g->pxor(r, r);
-            break;
-        case OT_FP32:
-            g->xorps(r, r);
-            break;
-        case OT_FP64:
-            g->xorpd(r, r);
-            break;
-        }
-    }
-};
+        GEN(REG_GEN, "ldr rt, [rn, rm, lsl #4]",
+            ag_emit_ldr_reg(e, AG_COND_AL, dst, ZEROMEM_PTR_REG, src, AG_LSL_AM(4), 1, AG_OFFSET_ADDR),
+            OT_INT);
 
-template <>
-struct RegMap<Xbyak::Ymm>
-{
-    const char *name;
-    Xbyak::Ymm v8, v9, v10, v11, v12, v13, v14, v15;
+        GEN_throughput(REG_GEN, "ldm rt, {r0}",
+                       ag_emit_ldmia(e, AG_COND_AL, 0, ZEROMEM_PTR_REG, 0b1),
+                       OT_INT);
 
-    RegMap()
-        :name("m256"), v8(8), v9(9), v10(10), v11(11), v12(12), v13(13), v14(14), v15(15)
-        {}
+        GEN_throughput(REG_GEN, "ldm rt, {r0-r3}",
+                       ag_emit_ldmia(e, AG_COND_AL, 0, ZEROMEM_PTR_REG, 0b1111),
+                       OT_INT);
 
-    void save(Xbyak::CodeGenerator *g, Xbyak::Ymm r, int off, enum operand_type ot) {
-        switch (ot) {
-        case OT_INT:
-            g->vmovdqa(g->ptr [g->rsp + off], r);
-            break;
-        case OT_FP32:
-            g->vmovaps(g->ptr [g->rsp + off], r);
-            break;
-        case OT_FP64:
-            g->vmovapd(g->ptr [g->rsp + off], r);
-            break;
-        }
-    }
+        GEN_throughput(REG_GEN, "ldm rt, {r0-r7}",
+                       ag_emit_ldmia(e, AG_COND_AL, 0, ZEROMEM_PTR_REG, 0b11111111),
+                       OT_INT);
 
-    void restore(Xbyak::CodeGenerator *g, Xbyak::Ymm r, int off, enum operand_type ot) {
-        switch (ot) {
-        case OT_INT:
-            g->vmovdqa(r, g->ptr [g->rsp + off]);
-            break;
-        case OT_FP32:
-            g->vmovaps(r, g->ptr [g->rsp + off]);
-            break;
-        case OT_FP64:
-            g->vmovapd(r, g->ptr [g->rsp + off]);
-            break;
-        }
-    }
+        GEN_throughput(REG_GEN, "ldrex rd, [rn]",
+                       ag_emit_ldrex(e, AG_COND_AL, 0, ZEROMEM_PTR_REG),
+                       OT_INT);
+        GEN_throughput(REG_GEN, "strex rd, rm, [rn]",
+                       ag_emit_strex(e, AG_COND_AL, 0, 1, ZEROMEM_PTR_REG),
+                       OT_INT);
 
-    void killdep(Xbyak::CodeGenerator *g, Xbyak::Ymm r, enum operand_type ot) {
-        switch (ot) {
-        case OT_INT:
-            g->vpxor(r, r, r);
-            break;
-        case OT_FP32:
-            g->vxorps(r, r, r);
-            break;
-        case OT_FP64:
-            g->vxorpd(r, r, r);
-            break;
-        }
-    }
-};
+        GEN_throughput(REG_GEN, "ldrex r0, [rn]; strex rd, r0, [rn] ",
+                       ag_emit_ldrex(e, AG_COND_AL, 0, ZEROMEM_PTR_REG);
+                       ag_emit_strex(e, AG_COND_AL, 1, 0, ZEROMEM_PTR_REG),
+                       OT_INT);
+
+        GEN_throughput(REG_GEN, "str rt, [rn, #0]",
+                       ag_emit_str_imm(e, AG_COND_AL, dst, ZEROMEM_PTR_REG, 0, 0),
+                       OT_INT);
 
 
+        GEN_latency(REG_GEN, "{str->ldr}->...",
+                    ag_emit_str_imm(e, AG_COND_AL, dst, ZEROMEM_PTR_REG, 0, 0);
+                    ag_emit_ldr_reg(e, AG_COND_AL, dst, ZEROMEM_PTR_REG, dst, 0, 1, AG_OFFSET_ADDR),
+                    OT_INT);
 
-template <>
-struct RegMap<Xbyak::Reg64>
-{
-    const char *name;
-    Xbyak::Reg64 v8, v9, v10, v11, v12, v13, v14, v15;
+        GEN_latency(REG_GEN, "{strb->ldr}->...",
+                    ag_emit_strb_imm(e, AG_COND_AL, dst, ZEROMEM_PTR_REG, 1, 0);
+                    ag_emit_ldr_reg(e, AG_COND_AL, dst, ZEROMEM_PTR_REG, dst, 0, 1, AG_OFFSET_ADDR),
+                    OT_INT);
 
-    RegMap()
-        :name("reg64"),
-         v8(Xbyak::Operand::R8),
-         v9(Xbyak::Operand::R9),
-         v10(Xbyak::Operand::R10),
-         v11(Xbyak::Operand::R11),
-         v12(Xbyak::Operand::R12),
-         v13(Xbyak::Operand::R13),
-         v14(Xbyak::Operand::R14),
-         v15(Xbyak::Operand::R15)
-        {}
+        GEN(REG_NEON_64b, "vadd.f32 d, d, d",
+            ag_emit_vadd_f32(e, 0, dst, src, src),
+            OT_F32x2);
+        GEN(REG_NEON_128b, "vadd.f32 q, q, q",
+            ag_emit_vadd_f32(e, 1, dst, src, src),
+            OT_F32x4);
 
-    void save(Xbyak::CodeGenerator *g, Xbyak::Reg64 r, int off, enum operand_type ) {
-        g->mov(g->ptr[g->rsp + off], r);
-    }
+        GEN(REG_NEON_64b, "vmul.f32 d, d, d",
+            ag_emit_vmul_f32(e, 0, dst, src, src),
+            OT_F32x2);
+        GEN(REG_NEON_128b, "vmul.f32 q, q, q",
+            ag_emit_vmul_f32(e, 1, dst, src, src),
+            OT_F32x4);
 
-    void restore(Xbyak::CodeGenerator *g, Xbyak::Reg64 r, int off, enum operand_type ) {
-        g->mov(r, g->ptr[g->rsp + off]);
-    }
+        GEN(REG_NEON_64b, "vmul.f32 d, d, d",
+            ag_emit_vmul_f32(e, 0, dst, src, src),
+            OT_F32x2);
+        GEN(REG_NEON_128b, "vmul.f32 q, q, q",
+            ag_emit_vmul_f32(e, 1, dst, src, src),
+            OT_F32x4);
 
-    void killdep(Xbyak::CodeGenerator *g, Xbyak::Reg64 r, enum operand_type) {
-        g->xor_(r, r);
-    }
+        GEN(REG_NEON_64b, "vmla.f32 d, d, d",
+            ag_emit_vmla_f32(e, 0, dst, src, src),
+            OT_F32x2);
+        GEN(REG_NEON_128b, "vmla.f32 q, q, q",
+            ag_emit_vmla_f32(e, 1, dst, src, src),
+            OT_F32x4);
 
-};
+        GEN_throughput(REG_NEON_64b, "vld1.32 d, [rn]",
+                       ag_emit_vld1_32(e, dst, ZEROMEM_PTR_REG, 15, 0),
+                       OT_F32x1);
+        GEN_throughput(REG_NEON_64b, "vld2.32 d, [rn]",
+                       ag_emit_vld2_32(e, dst, ZEROMEM_PTR_REG, 15, 0),
+                       OT_F32x2);
+        GEN_throughput(REG_NEON_128b, "vld4.32 q, [rn]",
+                       ag_emit_vld4_32(e, dst, ZEROMEM_PTR_REG, 15, 0),
+                       OT_F32x4);
 
-    
+        GEN_throughput(REG_NEON_64b, "vst1.32 d, [rn]",
+                       ag_emit_vst1_32(e, dst, ZEROMEM_PTR_REG, 15, 0),
+                       OT_F32x1);
+        GEN_throughput(REG_NEON_64b, "vst2.32 d, [rn]",
+                       ag_emit_vst2_32(e, dst, ZEROMEM_PTR_REG, 15, 0),
+                       OT_F32x2);
+        GEN_throughput(REG_NEON_128b, "vst4.32 q, [rn]",
+                       ag_emit_vst4_32(e, dst, ZEROMEM_PTR_REG, 15, 0),
+                       OT_F32x4);
 
+        GEN_throughput(REG_NEON_64b, "vcvt.f32.s32 d, d",
+                       ag_emit_vcvt_f32_s32(e, 0, dst, src),
+                       OT_F32x2);
+        GEN_throughput(REG_NEON_128b, "vcvt.f32.s32 q, q",
+                       ag_emit_vcvt_f32_s32(e, 1, dst*2, src*2),
+                       OT_F32x4);
 
-int
-main(int argc, char **argv)
-{
-    printf("== latency/throughput ==\n");
-    GEN(Reg64, "add", (g->add(dst, src)), false, OT_INT);
-    GEN(Reg64, "load", (g->mov(dst, g->ptr[src + g->rdx])), false, OT_INT);
+        GEN_throughput(REG_NEON_64b, "vcvt.s32.f32 d, d",
+                       ag_emit_vcvt_s32_f32(e, 0, dst, src),
+                       OT_F32x2);
+        GEN_throughput(REG_NEON_128b, "vcvt.s32.f32 q, q",
+                       ag_emit_vcvt_s32_f32(e, 1, dst*2, src*2),
+                       OT_F32x4);
 
-
-    GEN(Xmm, "pxor", (g->pxor(dst, src)), false, OT_INT);
-    GEN(Xmm, "padd", (g->paddd(dst, src)), false, OT_INT);
-    GEN(Xmm, "pmuldq", (g->pmuldq(dst, src)), false, OT_INT);
-
-    /* 128 */
-    GEN_latency(Xmm, "loadps",
-                (g->movaps(dst, g->ptr[g->rdx])),
-                (g->movaps(dst, g->ptr[g->rdx + g->rdi])); (g->movq(g->rdi, dst)); ,
-                false, OT_INT);
-
-    GEN(Xmm, "xorps", (g->xorps(dst, src)), false, OT_FP32);
-    GEN(Xmm, "addps", (g->addps(dst, src)), false, OT_FP32);
-    GEN(Xmm, "mulps", (g->mulps(dst, src)), true, OT_FP32);
-    GEN(Xmm, "blendps", (g->blendps(dst, src, 0)), false, OT_FP32);
-    GEN(Xmm, "pshufb", (g->pshufb(dst, src)), false, OT_INT);
-    GEN(Xmm, "pmullw", (g->pmullw(dst, src)), false, OT_INT);
-    GEN(Xmm, "phaddd", (g->phaddd(dst, src)), false, OT_INT);
-
-    GEN(Xmm, "pinsrd", (g->pinsrb(dst, g->edx, 0)), false, OT_INT);
-    GEN(Xmm, "dpps", (g->dpps(dst, src, 0xff)), false, OT_FP32);
-    GEN(Xmm, "cvtps2dq", (g->cvtps2dq(dst, src)), false, OT_FP32);
-
-    /* 256 */
-    GEN_latency(Ymm, "loadps",
-                (g->vmovaps(dst, g->ptr[g->rdx])),
-                (g->vmovaps(dst, g->ptr[g->rdx + g->rdi])); (g->movq(g->rdi, dst)); ,
-                false, OT_FP32);
-
-    GEN(Ymm, "xorps", (g->vxorps(dst, dst, src)), false, OT_FP32);
-    GEN(Ymm, "mulps", (g->vmulps(dst, dst, src)), true, OT_FP32);
-    GEN(Ymm, "addps", (g->vaddps(dst, dst, src)), false, OT_FP32);
-    GEN(Ymm, "divps", (g->vdivps(dst, dst, src)), false, OT_FP32);
-    GEN(Ymm, "divpd", (g->vdivpd(dst, dst, src)), false, OT_FP64);
-    GEN(Ymm, "rsqrtps", (g->vrsqrtps(dst, dst)), false, OT_FP32);
-    GEN(Ymm, "rcpps", (g->vrcpps(dst, dst)), false, OT_FP32);
-    GEN(Ymm, "sqrtps", (g->vsqrtps(dst, dst)), false, OT_FP32);
-    GEN(Ymm, "vperm2f128", (g->vperm2f128(dst,dst,src,0)), false, OT_FP32);
-    {
-        int reg[4];
-        bool have_avx2 = false;
-        bool have_fma = false;
-
-#ifdef _WIN32
-        __cpuidex(reg, 7, 0);
-#else
-        __cpuid_count(7, 0, reg[0], reg[1], reg[2], reg[3]);
-#endif
-
-        if (reg[1] & (1<<5)) {
-            have_avx2 = true;
-        }
-
-#ifdef _WIN32
-        __cpuid(reg, 1);
-#else
-        __cpuid(1, reg[0], reg[1], reg[2], reg[3]);
-#endif
-        if (reg[2] & (1<<12)) {
-            have_fma = true;
-        }
-
-
-        if (have_avx2) {
-            GEN(Ymm, "pxor", (g->vpxor(dst, dst, src)), false, OT_INT);
-            GEN(Ymm, "paddd", (g->vpaddd(dst, dst, src)), false, OT_INT);
-            GEN(Ymm, "vpermps", (g->vpermps(dst, dst, src)), false, OT_FP32);
-            GEN(Ymm, "vpermpd", (g->vpermpd(dst, dst, 0)), false, OT_FP64);
-        }
-
-        if (have_fma) {
-            GEN(Ymm, "vfmaps", (g->vfmadd132ps(dst, src, src)), true, OT_FP32);
-            GEN(Ymm, "vfmapd", (g->vfmadd132pd(dst, src, src)), true, OT_FP64);
-        }
+        num_insn *= 2;
     }
 }
-#endif
+
