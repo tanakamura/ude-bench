@@ -3,7 +3,7 @@ all: instbench
 NDK_PREBUILT=$(HOME)/a/android-ndk-r10d/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin
 ANDROID_PLATFORM=$(HOME)/a/android-ndk-r10d/platforms/android-21/arch-arm/usr
 
-TARGET=ANDROID
+TARGET=GNU_LINUX
 
 ifeq ($(TARGET),ANDROID)
 CC=$(NDK_PREBUILT)/arm-linux-androideabi-gcc
@@ -11,9 +11,16 @@ CXX=$(NDK_PREBUILT)/arm-linux-androideabi-g++
 SYSROOT=--sysroot ${ANDROID_PLATFORM}
 CFLAGS_SYSDEP=-I${ANDROID_PLATFORM}/include -L${ANDROID_PLATFORM}/lib $(SYSROOT)
 else
+
+ifeq ($(TARGET),GNU_LINUX)
+CC=gcc
+CXX=g++
+CFLAGS_SYSDEV=
+else
 CC=gcc
 CXX=g++
 CFLAGS_SYSDEP=-DEMIT_ONLY
+endif
 endif
 
 WARN_FLAGS=-Wall -Werror=missing-prototypes -Werror=implicit-function-declaration # -Werror=unknown-pragmas

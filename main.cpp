@@ -175,9 +175,12 @@ lt(const char *name,
     fclose(fp);
 #else
     typedef void (*func_t)(void);
+
+#ifdef __ANDROID__
     FILE *fp = fopen("/sdcard/test.bin", "wb");
     fwrite(code, 1, code_size, fp);
     fclose(fp);
+#endif
 
     func_t exec = (func_t)code;
     exec();
